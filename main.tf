@@ -101,7 +101,10 @@ data "aws_ami" "amazon-linux-image"{
 }
 
 output "amazon-linux-image-id" {
-    value = data.aws_ami.amazon-linux-image
+    value = data.aws_ami.amazon-linux-image.id
+}
+output "ec2-instance-public-ip"{
+    value = aws_instance.myapp-server.public_ip
 }
 
 resource "aws_instance" "myapp-server"{
@@ -129,4 +132,11 @@ resource "aws_instance" "myapp-server"{
 
     // associate key pair   
     key_name = "server-key-pair"
+
+    // to run nginx container
+    user_data = file("entryscript.sh")
+    
+    // it destroy and create ec2 instance, if we update script in user_data
+    user_data_replace_on_change = true
+    
 }

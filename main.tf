@@ -1,50 +1,80 @@
-provider "aws"{
-    region = "ap-south-1"
-    access_key = "abc"
-    secret_key = "abc"
-}
+# region and access key pair taken from env directly
+provider "aws"{}
 
-variable "subnet_cidr_block" {
-    description = "subnet cidr block" 
-    default = "10.0.10.0/24"
-}
+variable vpc_cidr_block {}
+variable subnet_cidr_block {}
+variable availability_zone {}
+variable env_prefix {}      # prefix like dev, prod etc..
 
-resource "aws_vpc" "deployment-vpc" {
-  cidr_block = "10.0.0.0/16"
+resource "aws_vpc" "myapp-vpc" {
+  cidr_block = var.vpc_cidr_block
   tags = {
-    Name: "development-vpc"
-    vpc-env: "dev"
+    Name: "${var.env_prefix}-vpc"
   }
 }
 
-resource "aws_subnet" "dev-subnet-1" {
-  vpc_id = aws_vpc.deployment-vpc.id
+resource "aws_subnet" "my-app-subnet-1" {
+  vpc_id = aws_vpc.myapp-vpc.id
   cidr_block = var.subnet_cidr_block
-  availability_zone = "ap-south-1a"
+  availability_zone = var.availability_zone
   tags = {
-    Name: "dev-subnet-1"
+    Name: "${var.env_prefix}-subnet-1"
   }
 }
 
-data "aws_vpc" "existing_vpc"{
-    default = true
+resource "aws_internet_gateway" "my-app-igw" {
+    vpc_id = aws_vpc.myapp-vpc.id
+    tags = {
+        Name: "${var.env_prefix}-internet-gateway"
+    }
 }
 
-resource "aws_subnet" "dev-subnet-2" {
-  vpc_id = data.aws_vpc.existing_vpc.id
-  cidr_block = "172.31.48.0/20"
-  availability_zone = "ap-south-1a"
-  tags = {
-    Name: "dev-subnet-2"
-  }
+resource "aws_route_table" "myapp-route-table" {
+    vpc_id = aws_vpc.myapp-vpc.id
+
+    route{
+        cidr_block = "0.0.0.0/0"        # to allow everyone
+        gateway_id = aws_internet_gateway.my-app-igw.id
+    }
+
+    tags = {
+        Name: "${var.env_prefix}-route-table"
+    }
 }
 
-output "dev-vpc-id" {
-    # We can print any attribute, we can see other attribute in plan
-    # for vpc, we have cidr_block, arn, region, tags, main_route_table_id, ipv6_cidr_block etc.
-    value = aws_vpc.deployment-vpc.id
+resource "aws_route_table_association" "association-route-table-subnet" {
+    subnet_id = aws_subnet.my-app-subnet-1.id
+    route_table_id = aws_route_table.myapp-route-table.id
 }
 
-output "dev-subnet-id" {
-    value = aws_subnet.dev-subnet-1.id
+resource "aws_security_group" "myapp-security-group" {
+    name = "myapp-security-group"
+    vpc_id = aws_vpc.myapp-vpc.id
+
+    ingress {
+        # range of port
+        from_port = 22
+        to_port = 22
+        protocol = "TCP"
+        cidr_blocks = ["0.0.0.0/0"]   
+    }
+
+    ingress {
+        from_port = 8080
+        to_port = 8080
+        protocol = "TCP"
+        cidr_blocks = ["0.0.0.0/0"]   
+    }
+
+    egress {
+        from_port = 0
+        to_port = 0
+        protocol = "-1"
+        cidr_blocks = ["0.0.0.0/0"] 
+        prefix_list_ids = []
+    }
+
+    tags = {
+        Name: "${var.env_prefix}-security-group"
+    }
 }

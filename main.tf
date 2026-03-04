@@ -1,51 +1,20 @@
 // region and access key pair taken from env directly
 provider "aws"{}
 
-variable vpc_cidr_block {}
-variable subnet_cidr_block {}
-variable availability_zone {}
-variable env_prefix {}      // prefix like dev, prod etc..
-variable "instance_type" {}
+module "my-app-subnet" {
+    source = "./modules/subnet"
+    vpc_cidr_block = var.vpc_cidr_block
+    subnet_cidr_block = var.subnet_cidr_block
+    availability_zone = var.availability_zone
+    env_prefix = var.env_prefix
+    vpc_id = aws_vpc.myapp-vpc.id
+}
 
 resource "aws_vpc" "myapp-vpc" {
   cidr_block = var.vpc_cidr_block
   tags = {
     Name: "${var.env_prefix}-vpc"
   }
-}
-
-resource "aws_subnet" "my-app-subnet-1" {
-  vpc_id = aws_vpc.myapp-vpc.id
-  cidr_block = var.subnet_cidr_block
-  availability_zone = var.availability_zone
-  tags = {
-    Name: "${var.env_prefix}-subnet-1"
-  }
-}
-
-resource "aws_internet_gateway" "my-app-igw" {
-    vpc_id = aws_vpc.myapp-vpc.id
-    tags = {
-        Name: "${var.env_prefix}-internet-gateway"
-    }
-}
-
-resource "aws_route_table" "myapp-route-table" {
-    vpc_id = aws_vpc.myapp-vpc.id
-
-    route{
-        cidr_block = "0.0.0.0/0"        // to allow everyone
-        gateway_id = aws_internet_gateway.my-app-igw.id
-    }
-
-    tags = {
-        Name: "${var.env_prefix}-route-table"
-    }
-}
-
-resource "aws_route_table_association" "association-route-table-subnet" {
-    subnet_id = aws_subnet.my-app-subnet-1.id
-    route_table_id = aws_route_table.myapp-route-table.id
 }
 
 resource "aws_security_group" "myapp-security-group" {
@@ -120,7 +89,7 @@ resource "aws_instance" "myapp-server"{
 
     // to end up this ec2 instance in our subnet
     // private ip of ec2 instance is withing our subnet cidr block
-    subnet_id = aws_subnet.my-app-subnet-1.id
+    subnet_id = module.my-app-subnet.subnet.id
 
     // to assign security groups for our ec2
     vpc_security_group_ids = [aws_security_group.myapp-security-group.id]

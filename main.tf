@@ -5,7 +5,8 @@ variable vpc_cidr_block {}
 variable subnet_cidr_block {}
 variable availability_zone {}
 variable env_prefix {}      // prefix like dev, prod etc..
-variable "instance_type" {}
+variable instance_type {}
+variable ssh_key {}
 
 resource "aws_vpc" "myapp-vpc" {
   cidr_block = var.vpc_cidr_block
@@ -100,6 +101,11 @@ data "aws_ami" "amazon-linux-image"{
     }
 }
 
+resource "aws_key_pair" "ssh-key"{
+    key_name = "my-app-key-pair"
+    public_key = file(var.ssh_key)
+}
+
 output "amazon-linux-image-id" {
     value = data.aws_ami.amazon-linux-image.id
 }
@@ -131,7 +137,7 @@ resource "aws_instance" "myapp-server"{
     associate_public_ip_address = true
 
     // associate key pair   
-    key_name = "server-key-pair"
+    key_name = "my-app-key-pair"
 
     // to run nginx container
     user_data = file("entryscript.sh")

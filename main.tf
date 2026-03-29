@@ -7,10 +7,11 @@ variable availability_zone {}
 variable env_prefix {}      // prefix like dev, prod etc..
 variable instance_type {}
 variable ssh_key {}
-variable ssh_key_private{}
 
 resource "aws_vpc" "myapp-vpc" {
   cidr_block = var.vpc_cidr_block
+  # to assign public dns name, we can use to connect via ansible
+  enable_dns_hostnames = true
   tags = {
     Name: "${var.env_prefix}-vpc"
   }
@@ -110,11 +111,11 @@ resource "aws_key_pair" "ssh-key"{
 output "amazon-linux-image-id" {
     value = data.aws_ami.amazon-linux-image.id
 }
-output "ec2-instance-public-ip"{
-    value = aws_instance.myapp-server.public_ip
-}
+# output "ec2-instance-public-ip"{
+#     value = aws_instance.myapp-server.public_ip
+# }
 
-resource "aws_instance" "myapp-server"{
+resource "aws_instance" "myapp-serve-one"{
     // ami image id can be change in version upgrade and region wise
     // we can't take static copied from aws console
     ami = data.aws_ami.amazon-linux-image.id
@@ -137,27 +138,33 @@ resource "aws_instance" "myapp-server"{
     key_name = "my-app-key-pair"
 
     tags = {    
-        Name: "${var.env_prefix}-server"
-    }
-
-    provisioner "local-exec" {
-        // set working directory to apply ansible.cfg and project-vars
-        working_dir = "/home/mitesh/Documents/GitHub/ansible"
-
-        command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_key_private} --user ec2-user deploy-docker.yaml"
+        Name: "${var.env_prefix}-server-one"
     }
 }
 
-#  null resource 
-#  to not to create any resource, but to execute commands
-# resource "null-resource" "configure-server" {
-#     triggers = {
-#         trigger = aws_instance.myapp-server.public_ip
-#     }
-#     provisioner "local-exec" {
-#         // set working directory to apply ansible.cfg and project-vars
-#         working_dir = "/home/mitesh/Documents/GitHub/ansible"
+resource "aws_instance" "myapp-server-two"{
+    ami = data.aws_ami.amazon-linux-image.id
+    instance_type = var.instance_type
+    subnet_id = aws_subnet.my-app-subnet-1.id
+    vpc_security_group_ids = [aws_security_group.myapp-security-group.id]
+    availability_zone = var.availability_zone
+    associate_public_ip_address = true
+    key_name = "my-app-key-pair"
+    tags = {    
+        Name: "${var.env_prefix}-server-two"
+    }
+}
 
-#         command = "ansible-playbook --inventory ${aws_instance.myapp-server.public_ip}, --private-key ${var.ssh_key_private} --user ec2-user deploy-docker.yaml"
-#     }
-# }
+
+resource "aws_instance" "myapp-server-three"{
+    ami = data.aws_ami.amazon-linux-image.id
+    instance_type = "t3.micro"
+    subnet_id = aws_subnet.my-app-subnet-1.id
+    vpc_security_group_ids = [aws_security_group.myapp-security-group.id]
+    availability_zone = var.availability_zone
+    associate_public_ip_address = true
+    key_name = "my-app-key-pair"
+    tags = {    
+        Name: "${var.env_prefix}-server-three"
+    }
+}
